@@ -1,5 +1,19 @@
+# Maven
 target/
-.mvn/
 *.class
 *.jar
-!.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ
+*.iml
+.idea/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
