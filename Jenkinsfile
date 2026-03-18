@@ -2,14 +2,15 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME   = 'demo-backend'
-        IMAGE_TAG    = "${env.BUILD_NUMBER}"
-        REGISTRY     = credentials('docker-registry-url')   // set in Jenkins credentials
-        DOCKER_CREDS = credentials('docker-registry-creds') // username/password binding
+        AWS_REGION = 'eu-north-1'
+        ACCOUNT_ID = '766209049494'
+        IMAGE_NAME = 'demo-test'
+        IMAGE_TAG  = "${env.BUILD_NUMBER}"
+        IMAGE_URI  = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_NAME}"
     }
 
     tools {
-        maven 'Maven-3.9'   // configured in Jenkins → Global Tool Configuration
+        maven 'Maven-3.9'
         jdk   'JDK-17'
     }
 
@@ -18,14 +19,13 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "Branch: ${env.BRANCH_NAME} | Build: ${env.BUILD_NUMBER}"
             }
         }
 
         stage('Build') {
             steps {
                 dir('demo-backend') {
-                    sh 'mvn clean compile -q'
+                    sh 'mvn clean compile'
                 }
             }
         }
@@ -46,8 +46,7 @@ pipeline {
         stage('Package') {
             steps {
                 dir('demo-backend') {
-                    sh 'mvn package -DskipTests -q'
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                    sh 'mvn package -DskipTests'
                 }
             }
         }
@@ -56,60 +55,68 @@ pipeline {
             steps {
                 dir('demo-backend') {
                     sh """
-                        docker build \
-                            -f Dockerfile \
-                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                            -t ${IMAGE_NAME}:latest \
-                            .
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                     """
                 }
             }
         }
 
-        stage('Docker Push') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
+        stage('Login to ECR') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-creds'   // 🔥 Jenkins AWS credentials ID
+                ]]) {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} \
+                        | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                    """
                 }
             }
+        }
+
+        stage('Tag Image') {
             steps {
                 sh """
-                    echo ${DOCKER_CREDS_PSW} | docker login ${REGISTRY} -u ${DOCKER_CREDS_USR} --password-stdin
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    docker tag ${IMAGE_NAME}:latest     ${REGISTRY}/${IMAGE_NAME}:latest
-                    docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    docker push ${REGISTRY}/${IMAGE_NAME}:latest
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_URI}:${IMAGE_TAG}
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_URI}:latest
                 """
             }
         }
 
-        stage('Deploy') {
+        stage('Push to ECR') {
+            steps {
+                sh """
+                    docker push ${IMAGE_URI}:${IMAGE_TAG}
+                    docker push ${IMAGE_URI}:latest
+                """
+            }
+        }
+
+        stage('Deploy (EC2)') {
             when { branch 'main' }
             steps {
-                echo "Deploying ${IMAGE_NAME}:${IMAGE_TAG} ..."
-                // Option A – docker-compose (single server)
                 sh """
-                    docker-compose -f docker-compose.yml up -d --no-deps backend
+                    docker stop backend || true
+                    docker rm backend || true
+
+                    docker run -d -p 8080:8080 \
+                    --name backend \
+                    ${IMAGE_URI}:latest
                 """
-                // Option B – kubectl (uncomment for Kubernetes)
-                // sh """
-                //     kubectl set image deployment/backend backend=${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                //     kubectl rollout status deployment/backend
-                // """
             }
         }
     }
 
     post {
         success {
-            echo "Backend pipeline SUCCESS — image: ${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "SUCCESS: ${IMAGE_URI}:${IMAGE_TAG}"
         }
         failure {
-            echo "Backend pipeline FAILED on branch ${env.BRANCH_NAME}"
+            echo "FAILED on ${env.BRANCH_NAME}"
         }
         always {
-            sh 'docker image prune -f --filter "until=24h"'
+            sh 'docker system prune -f'
             cleanWs()
         }
     }
