@@ -55,21 +55,21 @@ jobs:
 #        run: docker build -t backend-app .
         run: |
           docker build \
-          -t backend-app:latest \
+#          -t backend-app:latest \
           -t backend-app:${{ github.sha }} .
 
       - name: Tag Docker Image
         run: |
-          docker tag backend-app:latest \
-          ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+#          docker tag backend-app:latest \
+#          ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
           docker tag backend-app:${{ github.sha }} \
           ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
       - name: Push Docker Image
         run: |
-          docker push \
-          ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+#          docker push \
+#          ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
           docker push \
           ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
