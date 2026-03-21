@@ -53,10 +53,11 @@ jobs:
 
       - name: Build Docker Image
 #        run: docker build -t backend-app .
-        run: |
-          docker build \
+        run: docker build -t backend-app:${{ github.sha }} .
+#        run: |
+#          docker build \
 #          -t backend-app:latest \
-          -t backend-app:${{ github.sha }} .
+#          -t backend-app:${{ github.sha }} .
 
       - name: Tag Docker Image
         run: |
