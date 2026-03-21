@@ -52,8 +52,7 @@ jobs:
             ${{ secrets.ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
       - name: Build Docker Image
-#        run: docker build -t backend-app .
-        run: docker build -t $ECR_REPOSITORY -t $ECR_REPOSITORY:${{ github.sha }} .
+        run: docker build -t backend-app .
 
       - name: Tag Docker Image
         run: |
